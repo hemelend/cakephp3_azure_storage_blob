@@ -40,10 +40,8 @@ class Connection implements ConnectionInterface
 
         $connectionString = "DefaultEndpointsProtocol=https;AccountName={$this->_config['AccountName']};AccountKey={$this->_config['AccountKey']}";
         
-        $this->_blobClient = new BlobRestProxy();
         // Create blob client.
-        $this->_blobClient->createBlobService($connectionString);
-
+        $this->_blobClient = BlobRestProxy::createBlobService($connectionString);;
     }
 
     /**
