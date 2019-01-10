@@ -1,6 +1,8 @@
 <?php
 namespace CakeAzureStorageBlob\Datasource;
 
+require_once 'vendor/autoload.php';
+
 use MicrosoftAzure\Storage\Blob\BlobRestProxy;
 use MicrosoftAzure\Storage\Common\Exceptions\ServiceException;
 use MicrosoftAzure\Storage\Blob\Models\ListBlobsOptions;
@@ -37,10 +39,11 @@ class Connection implements ConnectionInterface
         $this->_config = $config;
 
         $connectionString = "DefaultEndpointsProtocol=https;AccountName={$this->_config['AccountName']};AccountKey={$this->_config['AccountKey']}";
-
-        // echo $connectionString;
+        
+        $this->_blobClient = new BlobRestProxy();
         // Create blob client.
-        $this->_blobClient = BlobRestProxy::createBlobService($connectionString);
+        $this->_blobClient->createBlobService($connectionString);
+
     }
 
     /**
@@ -141,10 +144,21 @@ class Connection implements ConnectionInterface
         return $key;
     }
 
-    public function newContainer($containerName)
+    /**
+     * Call createContainer API
+     *
+     * @see BlobRestProxy::createBlockBlob
+     * @see http://msdn.microsoft.com/en-us/library/windowsazure/dd179468.aspx
+     * 
+     * @param string                        $container The container name.
+     * @param Models\CreateContainerOptions $options   The optional parameters.
+     *
+     * @return void
+     *
+     */
+    public function createContainer($containerName)
     {
-        echo $this->_blobClient;
-        $cntrName  = $this->__keyPreProcess($containerName);
+        $containerName  = $this->__keyPreProcess($containerName);
         // Create container options object.
         $createContainerOptions = new CreateContainerOptions();
 
@@ -170,7 +184,7 @@ class Connection implements ConnectionInterface
 
         try {
             // Create container.
-            $this->_blobClient->createContainer($cntrName, $createContainerOptions);
+            $this->_blobClient->createContainer($containerName, $createContainerOptions);
         } 
         catch(ServiceException $e){
             // Handle exception based on error codes and messages.
@@ -190,177 +204,74 @@ class Connection implements ConnectionInterface
         }
     }
 
-    // /**
-    //  * Call CopyObject API.
-    //  *
-    //  * @see S3Client::copyObject
-    //  * @see http://docs.aws.amazon.com/aws-sdk-php/v3/api/api-s3-2006-03-01.html#copyobject
-    //  *
-    //  * @param string $srcKey
-    //  * @param string $destKey
-    //  * @param array  $options
-    //  *
-    //  * @return \Aws\Result
-    //  */
-    // public function copyObject($srcKey, $destKey, array $options = [])
-    // {
-    //     $srcKey  = $this->__keyPreProcess($srcKey);
-    //     $destKey = $this->__keyPreProcess($destKey);
+    /**
+     * Call CreateBlockBlob API
+     *
+     * @see BlobRestProxy::createBlockBlob
+     * @see http://msdn.microsoft.com/en-us/library/windowsazure/dd179451.aspx
+     * 
+     * @param string                          $container The name of the container.
+     * @param string                          $blob      The name of the blob.
+     * @param string|resource|StreamInterface $content   The content of the blob.
+     * @param Models\CreateBlockBlobOptions   $options   The optional parameters.
+     *
+     * @return Models\PutBlobResult
+     */
+    public function createBlockBlob($containerName, $fileToUpload, $content)
+    {
+        $containerName  = $this->__keyPreProcess($containerName);
+        $fileToUpload = $this->__keyPreProcess($fileToUpload);
 
-    //     $options += [
-    //         'Bucket'     => $this->_config['bucketName'],
-    //         'Key'        => $destKey,
-    //         'CopySource' => $this->_config['bucketName'] . '/' . $srcKey,
-    //         'ACL'        => 'public-read',
-    //     ];
+        try {
+            //Upload blob
+            $this->_blobClient->createBlockBlob($containerName, $fileToUpload, $content);
+        }
+        catch(ServiceException $e){
+            // Handle exception based on error codes and messages.
+            // Error codes and messages are here:
+            // http://msdn.microsoft.com/library/azure/dd179439.aspx
+            $code = $e->getCode();
+            $error_message = $e->getMessage();
+            echo $code.": ".$error_message."<br />";
+        }
+        catch(InvalidArgumentTypeException $e){
+            // Handle exception based on error codes and messages.
+            // Error codes and messages are here:
+            // http://msdn.microsoft.com/library/azure/dd179439.aspx
+            $code = $e->getCode();
+            $error_message = $e->getMessage();
+            echo $code.": ".$error_message."<br />";
+        }
+    }
 
-    //     return $this->_blobClient->copyObject($options);
-    // }
+    /**
+     * Call deleteBlob API.
+     *
+     * @see BlobRestProxy::deleteBlob
+     * @see http://msdn.microsoft.com/en-us/library/windowsazure/dd179413.aspx
+     *
+     * @param string                   $container name of the container
+     * @param string                   $blob      name of the blob
+     * @param Models\DeleteBlobOptions $options   optional parameters
+     *
+     * @return void
+     */
+    public function deleteBlob($container, $blob, array $options = [])
+    {
+        try {
+            $container = $this->__keyPreProcess($container);
+            $blob = $this->__keyPreProcess($blob);
 
-    // /**
-    //  * Call DeleteObject API.
-    //  *
-    //  * @see S3Client::deleteObject
-    //  * @see http://docs.aws.amazon.com/aws-sdk-php/v3/api/api-s3-2006-03-01.html#deleteobject
-    //  *
-    //  * @param string $key
-    //  * @param array  $options
-    //  *
-    //  * @return \Aws\Result
-    //  */
-    // public function deleteObject($key, array $options = [])
-    // {
-    //     $key = $this->__keyPreProcess($key);
-
-    //     $options += [
-    //         'Bucket' => $this->_config['bucketName'],
-    //         'Key'    => $key,
-    //     ];
-
-    //     return $this->_blobClient->deleteObject($options);
-    // }
-
-    // /**
-    //  * Call DeleteObjects API.
-    //  *
-    //  * @see S3Client::deleteObjects
-    //  * @see http://docs.aws.amazon.com/aws-sdk-php/v3/api/api-s3-2006-03-01.html#deleteobjects
-    //  *
-    //  * @param array $keys
-    //  * @param array $options
-    //  *
-    //  * @return \Aws\Result
-    //  */
-    // public function deleteObjects($keys, array $options = [])
-    // {
-    //     foreach ($keys as $index => $key) {
-    //         $keys[$index] = [
-    //             'Key' => $this->__keyPreProcess($key),
-    //         ];
-    //     }
-
-    //     $options += [
-    //         'Bucket' => $this->_config['bucketName'],
-    //         'Delete' => [
-    //             'Objects' => $keys,
-    //         ],
-    //     ];
-
-    //     return $this->_blobClient->deleteObjects($options);
-    // }
-
-    // /**
-    //  * Call doesObjectExists API.
-    //  *
-    //  * @see S3Client::doesObjectExist
-    //  * @see http://docs.aws.amazon.com/aws-sdk-php/v3/api/api-s3-2006-03-01.html#headobject
-    //  *
-    //  * @param string $key
-    //  * @param array  $options
-    //  *
-    //  * @return bool
-    //  */
-    // public function doesObjectExist($key, array $options = [])
-    // {
-    //     $key = $this->__keyPreProcess($key);
-
-    //     return $this->_blobClient->doesObjectExist(
-    //         $this->_config['bucketName'],
-    //         $key,
-    //         $options
-    //     );
-    // }
-
-    // /**
-    //  * Call GetObject API.
-    //  *
-    //  * @see S3Client::getObject
-    //  * @see http://docs.aws.amazon.com/aws-sdk-php/v3/api/api-s3-2006-03-01.html#getobject
-    //  *
-    //  * @param string $key
-    //  * @param array  $options
-    //  *
-    //  * @return \Aws\Result
-    //  */
-    // public function getObject($key, array $options = [])
-    // {
-    //     $key = $this->__keyPreProcess($key);
-
-    //     $options += [
-    //         'Bucket' => $this->_config['bucketName'],
-    //         'Key'    => $key,
-    //         'ACL'    => 'public-read',
-    //     ];
-
-    //     return $this->_blobClient->getObject($options);
-    // }
-
-    // /**
-    //  * Call HeadObject API.
-    //  *
-    //  * @see S3Client::headObject
-    //  * @see http://docs.aws.amazon.com/aws-sdk-php/v3/api/api-s3-2006-03-01.html#headobject
-    //  *
-    //  * @param string $key
-    //  * @param array  $options
-    //  *
-    //  * @return \Aws\Result
-    //  */
-    // public function headObject($key, array $options = [])
-    // {
-    //     $key = $this->__keyPreProcess($key);
-
-    //     $options += [
-    //         'Bucket' => $this->_config['bucketName'],
-    //         'Key'    => $key,
-    //     ];
-
-    //     return $this->_blobClient->headObject($options);
-    // }
-
-    // /**
-    //  * Call PutObject API.
-    //  *
-    //  * @see S3Client::putObject
-    //  * @see http://docs.aws.amazon.com/aws-sdk-php/v3/api/api-s3-2006-03-01.html#putobject
-    //  *
-    //  * @param string $key
-    //  * @param string $content
-    //  * @param array  $options
-    //  *
-    //  * @return \Aws\Result
-    //  */
-    // public function putObject($key, $content, array $options = [])
-    // {
-    //     $key = $this->__keyPreProcess($key);
-
-    //     $options += [
-    //         'Bucket' => $this->_config['bucketName'],
-    //         'Key'    => $key,
-    //         'ACL'    => 'public-read',
-    //         'Body'   => $content,
-    //     ];
-
-    //     return $this->_blobClient->putObject($options);
-    // }
+            //Delete blob
+            $this->_blobClient->deleteBlob($containerName, $blob, $options);
+        }
+        catch(ServiceException $e){
+            // Handle exception based on error codes and messages.
+            // Error codes and messages are here:
+            // http://msdn.microsoft.com/library/azure/dd179439.aspx
+            $code = $e->getCode();
+            $error_message = $e->getMessage();
+            echo $code.": ".$error_message."<br />";
+        }
+    }
 }
